@@ -14,11 +14,11 @@ var (
 	UserAgent = "httpworker/2"
 )
 
-type Attr map[string]interface{}
+type FeedAttr map[string]interface{}
 
 type Feed struct {
 	URL  string
-	Attr Attr
+	Attr FeedAttr
 	Body *bytes.Buffer
 }
 
