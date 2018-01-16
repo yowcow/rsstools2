@@ -10,11 +10,12 @@ import (
 var feedUrls = []string{
 	"http://www3.nhk.or.jp/rss/news/cat0.xml",
 	"https://news.yahoo.co.jp/pickup/rss.xml",
+	"http://news.livedoor.com/topics/rss/top.xml",
 }
 
 func main() {
 	feedIn := make(chan *rsstools.Feed)
-	logger := log.New(os.Stdout, "", log.LstdFlags)
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 
 	parserIn := rsstools.StartHTTPWorker(feedIn, 4, logger)
 	bcastIn := rsstools.StartParserWorker(parserIn, 4, logger)
