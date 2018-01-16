@@ -1,18 +1,15 @@
-package parserworker
+package rsstools2
 
 import (
 	"encoding/xml"
 	"log"
 	"sync"
-	"sync/atomic"
-
-	"github.com/yowcow/rsstools2/httpworker"
 )
 
 type RSSItem struct {
 	Title string `xml:"title"`
 	Link  string `xml:"link"`
-	Attr  httpworker.FeedAttr
+	Attr  FeedAttr
 }
 
 type RSS1 struct {
@@ -23,47 +20,44 @@ type RSS2 struct {
 	Channel *RSS1 `xml:"channel"`
 }
 
-func Start(
-	in <-chan *httpworker.Feed,
-	wg *sync.WaitGroup,
-	workers int,
-	logger *log.Logger,
-) <-chan *RSSItem {
+type parserWorker struct {
+	in     <-chan *Feed
+	out    chan<- *RSSItem
+	wg     *sync.WaitGroup
+	logger *log.Logger
+}
+
+func StartParserWorker(in <-chan *Feed, workers int, logger *log.Logger) <-chan *RSSItem {
 	out := make(chan *RSSItem)
+	wg := new(sync.WaitGroup)
 	wg.Add(workers)
-	working := int32(workers)
+	p := &parserWorker{in, out, wg, logger}
 	for id := 1; id <= workers; id++ {
-		go run(id, in, out, wg, &working, logger)
+		go p.runParserWorker(id)
 	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
 	return out
 }
 
-func run(
-	id int,
-	in <-chan *httpworker.Feed,
-	out chan<- *RSSItem,
-	wg *sync.WaitGroup,
-	working *int32,
-	logger *log.Logger,
-) {
+func (p parserWorker) runParserWorker(id int) {
 	defer func() {
-		if atomic.AddInt32(working, -1) == 0 {
-			close(out)
-		}
-		logger.Printf("[parserworker %d] finished", id)
-		wg.Done()
+		p.logger.Printf("[parserWorker %d] finished", id)
+		p.wg.Done()
 	}()
-	logger.Printf("[parserworker %d] started", id)
-	for feed := range in {
+	p.logger.Printf("[parserWorker %d] started", id)
+	for feed := range p.in {
 		rawxml := feed.Body.Bytes()
 		rss1, err := parseRSS1(rawxml)
 		if err != nil {
-			logger.Printf("[parserworker %d] Failed parsing XML as RSS1: %s (%s)", id, err, feed.URL)
+			p.logger.Printf("[parserWorker %d] Failed parsing XML as RSS1: %s (%s)", id, err, feed.URL)
 			continue
 		}
 		rss2, err := parseRSS2(rawxml)
 		if err != nil {
-			logger.Printf("[parserworker %d] Failed parsing XML as RSS2: %s (%s)", id, err, feed.URL)
+			p.logger.Printf("[parserWorker %d] Failed parsing XML as RSS2: %s (%s)", id, err, feed.URL)
 			continue
 		}
 		var items []*RSSItem
@@ -74,7 +68,7 @@ func run(
 		}
 		for _, item := range items {
 			item.Attr = feed.Attr
-			out <- item
+			p.out <- item
 		}
 	}
 }

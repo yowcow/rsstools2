@@ -1,17 +1,16 @@
-package httpworker
+package rsstools2
 
 import (
 	"bytes"
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStart(t *testing.T) {
+func TestStartHTTPWorker(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "text/plain")
 		w.Write([]byte("Hello world"))
@@ -19,18 +18,24 @@ func TestStart(t *testing.T) {
 	svr := httptest.NewServer(handler)
 
 	in := make(chan *Feed)
-	wg := new(sync.WaitGroup)
 	logbuf := new(bytes.Buffer)
 	logger := log.New(logbuf, "", 0)
-	out := Start(in, wg, 2, logger)
+	out := StartHTTPWorker(in, 4, logger)
 
-	feed := &Feed{svr.URL, nil, nil}
-	in <- feed
-	ret := <-out
+	count := 0
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for f := range out {
+			assert.Equal(t, "Hello world", f.Body.String())
+			count++
+		}
+	}()
+
+	in <- &Feed{svr.URL, nil, nil}
+	in <- &Feed{svr.URL, nil, nil}
 	close(in)
-	<-out
-	wg.Wait()
-	svr.Close()
+	<-done
 
-	assert.Equal(t, "Hello world", ret.Body.String())
+	assert.Equal(t, 2, count)
 }

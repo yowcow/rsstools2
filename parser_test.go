@@ -1,13 +1,11 @@
-package parserworker
+package rsstools2
 
 import (
 	"bytes"
 	"log"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/yowcow/rsstools2/httpworker"
 )
 
 var rssXML1 = `
@@ -24,34 +22,32 @@ var rssXML1 = `
 </rdf:RDF>
 `
 
-func TestStartForRSS1(t *testing.T) {
-	in := make(chan *httpworker.Feed)
-	wg := new(sync.WaitGroup)
+func TestStartParserWorkerForRSS1(t *testing.T) {
+	in := make(chan *Feed)
 	logbuf := new(bytes.Buffer)
 	logger := log.New(logbuf, "", 0)
-	out := Start(in, wg, 4, logger)
+	out := StartParserWorker(in, 4, logger)
 
 	result := map[string]int{}
 	done := make(chan bool)
 	go func() {
+		defer close(done)
 		for item := range out {
 			result[item.Link]++
 			assert.Equal(t, false, item.Attr["foo_flg"])
 			assert.Equal(t, 1234, item.Attr["bar_count"])
 		}
-		close(done)
 	}()
 
-	attr := httpworker.FeedAttr{
+	attr := FeedAttr{
 		"foo_flg":   false,
 		"bar_count": 1234,
 	}
 	for i := 0; i < 10; i++ {
 		buf := bytes.NewBufferString(rssXML1)
-		in <- &httpworker.Feed{"url", attr, buf}
+		in <- &Feed{"url", attr, buf}
 	}
 	close(in)
-	wg.Wait()
 	<-done
 
 	assert.Equal(t, 10, result["http://foobar"])
@@ -74,34 +70,32 @@ var rssXML2 = `
 </rdf:RDF>
 `
 
-func TestStartForRSS2(t *testing.T) {
-	in := make(chan *httpworker.Feed)
-	wg := new(sync.WaitGroup)
+func TestStartParserWorkerForRSS2(t *testing.T) {
+	in := make(chan *Feed)
 	logbuf := new(bytes.Buffer)
 	logger := log.New(logbuf, "", 0)
-	out := Start(in, wg, 4, logger)
+	out := StartParserWorker(in, 4, logger)
 
 	result := map[string]int{}
 	done := make(chan bool)
 	go func() {
+		defer close(done)
 		for item := range out {
 			result[item.Link]++
 			assert.Equal(t, true, item.Attr["foo_flg"])
 			assert.Equal(t, 1234, item.Attr["bar_count"])
 		}
-		close(done)
 	}()
 
-	attr := httpworker.FeedAttr{
+	attr := FeedAttr{
 		"foo_flg":   true,
 		"bar_count": 1234,
 	}
 	for i := 0; i < 10; i++ {
 		buf := bytes.NewBufferString(rssXML2)
-		in <- &httpworker.Feed{"url", attr, buf}
+		in <- &Feed{"url", attr, buf}
 	}
 	close(in)
-	wg.Wait()
 	<-done
 
 	assert.Equal(t, 10, result["http://foobar"])
@@ -109,27 +103,25 @@ func TestStartForRSS2(t *testing.T) {
 }
 
 func TestStartForInvalidXML(t *testing.T) {
-	in := make(chan *httpworker.Feed)
-	wg := new(sync.WaitGroup)
+	in := make(chan *Feed)
 	logbuf := new(bytes.Buffer)
 	logger := log.New(logbuf, "", 0)
-	out := Start(in, wg, 4, logger)
+	out := StartParserWorker(in, 4, logger)
 
 	count := 0
 	done := make(chan bool)
 	go func() {
+		defer close(done)
 		for _ = range out {
 			count++
 		}
-		close(done)
 	}()
 
 	rssbuf := bytes.NewBufferString("something has happened")
-	feed := &httpworker.Feed{"http://something/rss", httpworker.FeedAttr{}, rssbuf}
+	feed := &Feed{"http://something/rss", FeedAttr{}, rssbuf}
 	in <- feed
 	in <- feed
 	close(in)
-	wg.Wait()
 	<-done
 
 	assert.Equal(t, 0, count)
