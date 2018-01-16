@@ -8,6 +8,7 @@ import (
 type ItemWorkerFunc func(*RSSItem, *log.Logger) bool
 
 type itemWorker struct {
+	name   string
 	in     <-chan *RSSItem
 	out    chan<- *RSSItem
 	fn     ItemWorkerFunc
@@ -15,11 +16,11 @@ type itemWorker struct {
 	logger *log.Logger
 }
 
-func StartItemWorker(in <-chan *RSSItem, fn ItemWorkerFunc, workers int, logger *log.Logger) <-chan *RSSItem {
+func StartItemWorker(name string, in <-chan *RSSItem, fn ItemWorkerFunc, workers int, logger *log.Logger) <-chan *RSSItem {
 	out := make(chan *RSSItem)
 	wg := new(sync.WaitGroup)
 	wg.Add(workers)
-	w := &itemWorker{in, out, fn, wg, logger}
+	w := &itemWorker{name, in, out, fn, wg, logger}
 	for id := 1; id <= workers; id++ {
 		go w.runItemWorker(id)
 	}
@@ -32,10 +33,10 @@ func StartItemWorker(in <-chan *RSSItem, fn ItemWorkerFunc, workers int, logger 
 
 func (w itemWorker) runItemWorker(id int) {
 	defer func() {
-		w.logger.Printf("[itemWorker %d] finished", id)
+		w.logger.Printf("[%s %d] finished", w.name, id)
 		w.wg.Done()
 	}()
-	w.logger.Printf("[itemWorker %d] started", id)
+	w.logger.Printf("[%s %d] started", w.name, id)
 	for item := range w.in {
 		if w.fn(item, w.logger) {
 			w.out <- item

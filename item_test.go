@@ -17,7 +17,7 @@ func TestStartItemWorkerSendsNoMsg(t *testing.T) {
 		calledcount++
 		return false
 	})
-	out := StartItemWorker(in, fn, 4, logger)
+	out := StartItemWorker("hoge", in, fn, 4, logger)
 
 	rcvcount := 0
 	done := make(chan struct{})
@@ -47,7 +47,7 @@ func TestStartItemWorkerSendsMsg(t *testing.T) {
 		calledcount++
 		return true
 	})
-	out := StartItemWorker(in, fn, 4, logger)
+	out := StartItemWorker("fuga", in, fn, 4, logger)
 
 	rcvcount := 0
 	done := make(chan struct{})
