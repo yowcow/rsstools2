@@ -5,7 +5,7 @@ vendor:
 	dep ensure -v
 
 test:
-	go test ./
+	go test ./...
 
 clean:
 	rm -rf vendor Gopkg.lock
